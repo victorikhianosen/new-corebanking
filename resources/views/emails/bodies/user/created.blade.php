@@ -16,6 +16,10 @@
                     <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $user->username }}</td>
                 </tr>
                 <tr>
+                    <td style="padding:6px 0; color:#64748b;">Password</td>
+                    <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $password }}</td>
+                </tr>
+                <tr>
                     <td style="padding:6px 0; color:#64748b;">Account Code</td>
                     <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $user->code }}</td>
                 </tr>

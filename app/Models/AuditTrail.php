@@ -8,8 +8,6 @@ use RuntimeException;
 
 class AuditTrail extends Model
 {
-    protected $connection = 'tenant';
-
     protected $guarded = [];
 
     protected $casts = [

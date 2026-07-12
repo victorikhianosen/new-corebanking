@@ -46,7 +46,7 @@ class GlobalLogger
         Log::info('REQUEST DATA: ' . json_encode($this->sanitize($request), JSON_PRETTY_PRINT));
         Log::info('STATUS CODE: ' . $response->getStatusCode());
         Log::info('RESPONSE DATA: ' . json_encode(
-            json_decode($response->getContent(), true),
+            $this->sanitizeResponse(json_decode($response->getContent(), true)),
             JSON_PRETTY_PRINT
         ));
         Log::info('Execution Time: ' . $executionTime . ' ms');
@@ -62,6 +62,30 @@ class GlobalLogger
             'password',
             'password_confirmation',
             'token',
+            'access_token',
         ]);
+    }
+
+    protected function sanitizeResponse(?array $data): ?array
+    {
+        if (! $data) {
+            return $data;
+        }
+
+        $sensitiveKeys = [
+            'password',
+            'password_confirmation',
+            'token',
+            'access_token',
+            'refresh_token',
+        ];
+
+        array_walk_recursive($data, function (&$value, $key) use ($sensitiveKeys) {
+            if (in_array($key, $sensitiveKeys, true)) {
+                $value = '***REDACTED***';
+            }
+        });
+
+        return $data;
     }
 }

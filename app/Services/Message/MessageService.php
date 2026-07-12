@@ -3,7 +3,6 @@
 namespace App\Services\Message;
 
 use App\Mail\CoreBankMail;
-use App\Mail\SystemNotificationMail;
 use App\Models\Message;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
@@ -12,9 +11,8 @@ use Throwable;
 
 class MessageService
 {
-    public function send(
+    public function sendEmail(
         Model $actor,
-        string $channel,
         string $type,
         string $recipient,
         string $body,
@@ -24,7 +22,7 @@ class MessageService
         $message = Message::create([
             'actor_id'   => $actor->id,
             'actor_type' => get_class($actor),
-            'channel'    => $channel,
+            'channel'    => 'email',
             'type'       => $type,
             'recipient'  => $recipient,
             'subject'    => $subject,
@@ -34,13 +32,11 @@ class MessageService
         ]);
 
         try {
-            match ($channel) {
-                'email'  => $this->sendEmail($message),
-                'sms'    => $this->sendSms($message),
-                'push'   => $this->sendPush($message),
-                'in_app' => $this->sendInApp($message),
-                default  => $this->sendEmail($message),
-            };
+            Mail::to($message->recipient)->send(new CoreBankMail(
+                subjectLine: $message->subject ?? 'Notification',
+                content: $message->body,
+                files: $message->payload['files'] ?? [],
+            ));
 
             $message->update([
                 'status'  => 'sent',
@@ -54,34 +50,11 @@ class MessageService
 
             Log::error('Message send failed', [
                 'message_id' => $message->id,
-                'channel'    => $channel,
+                'channel'    => 'email',
                 'error'      => $e->getMessage(),
             ]);
         }
 
         return $message->fresh();
-    }
-
-
-    protected function sendEmail(Message $message): void
-{
-    Mail::to($message->recipient)->send(new CoreBankMail(
-        subjectLine: $message->subject ?? 'Notification',
-        content: $message->body,
-        files: $message->payload['files'] ?? [],
-    ));
-}
-
-
-    protected function sendSms(Message $message): void
-    {
-    }
-
-    protected function sendPush(Message $message): void
-    {
-    }
-
-    protected function sendInApp(Message $message): void
-    {
     }
 }

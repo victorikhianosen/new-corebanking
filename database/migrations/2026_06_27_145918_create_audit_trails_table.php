@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('audit_trails', function (Blueprint $table) {
             $table->id();
-            $table->string('actor_type')->default('system');   // user|admin|system|cron|job
             $table->string('performed_by_type')->nullable();    // polymorphic actor model
             $table->ulid('performed_by_id')->nullable();        // null for system/cron/job
             $table->string('performed_by_name')->nullable();

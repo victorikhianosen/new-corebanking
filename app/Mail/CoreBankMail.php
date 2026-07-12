@@ -25,16 +25,18 @@ class CoreBankMail extends Mailable implements ShouldQueue
         return new Envelope(subject: $this->subjectLine);
     }
 
+  
     public function content(): Content
-    {
-        return new Content(
-            view: 'emails.bank-template',
-            with: [
-                'content'     => $this->content,
-                'companyName' => config('app.name'),
-            ]
-        );
-    }
+{
+    return new Content(
+        view: 'emails.bank-template',
+        with: [
+            'content'     => $this->content,
+            'companyName' => config('app.name'),
+            'headerTitle' => $this->subjectLine,
+        ]
+    );
+}
 
     public function attachments(): array
     {

@@ -16,13 +16,11 @@ class AuditService
         ?array $after = null,
         ?string $description = null,
         ?Model $performer = null,
-        ?string $actorType = null,
     ): AuditTrail {
         $actor = $performer ?? auth()->user();
 
         return AuditTrail::create([
-            'actor_type'        => $actorType ?? $this->resolveActorType($actor),
-            'performed_by_type' => $actor?->getMorphClass(),
+            'performed_by_type' => $this->resolveActorType($actor),
             'performed_by_id'   => $actor?->getKey(),
             'performed_by_name' => $this->resolveName($actor),
 
@@ -36,7 +34,6 @@ class AuditService
             'ip'            => request()?->ip(),
             'agent'         => request()?->userAgent(),
             'channel'       => $this->channel(),
-            'tenant_code'   => $this->tenantCode(),
         ]);
     }
 
@@ -51,17 +48,18 @@ class AuditService
         );
     }
 
+    /**
+     * Derives a capitalized actor type label straight from the actor's own
+     * class name (e.g. User -> "User", Customer -> "Customer",
+     * Merchant -> "Merchant") — no manual map to keep in sync.
+     */
     private function resolveActorType(?Model $actor): string
     {
         if (! $actor) {
-            return app()->runningInConsole() ? 'cron' : 'system';
+            return app()->runningInConsole() ? 'System' : 'System';
         }
 
-        return match (class_basename($actor)) {
-            'Admin' => 'admin',
-            'User'  => 'user',
-            default => 'user',
-        };
+        return class_basename($actor);
     }
 
     private function resolveName(?Model $actor): ?string
@@ -70,7 +68,7 @@ class AuditService
             return app()->runningInConsole() ? 'System (console)' : 'System';
         }
 
-        return $actor->name ?? $actor->email ?? null;
+        return $actor->username ?? $actor->name ?? null;
     }
 
     private function moduleFrom(?Model $auditable): ?string
@@ -87,11 +85,5 @@ class AuditService
         $channel = Str::lower((string) request()?->header('X-Channel'));
 
         return in_array($channel, $allowed, true) ? $channel : 'web';
-    }
-
-    private function tenantCode(): ?string
-    {
-        return request()?->attributes->get('tenant')?->code
-            ?? request()?->header('X-Tenant-Id');
     }
 }

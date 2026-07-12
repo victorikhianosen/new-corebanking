@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\TenantRoutingMiddleware;
 use App\Http\Middleware\GlobalLogger;
 
 use Illuminate\Foundation\Application;
@@ -17,9 +16,6 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
-        $middleware->alias([
-            'tenant' => TenantRoutingMiddleware::class
-        ]);
         $middleware->append(GlobalLogger::class);
 
     })
@@ -46,11 +42,27 @@ return Application::configure(basePath: dirname(__DIR__))
                     );
                 }
 
-                if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException) {
+                    if ($e->getPrevious() instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                        return $responder->error(
+                            message: 'The requested data was not found.',
+                            responseCode: '404',
+                            statusCode: 404
+                        );
+                    }
+
                     return $responder->error(
-                        message: 'The requested resource was not found.',
+                        message: 'The requested URL does not exist.',
                         responseCode: '404',
                         statusCode: 404
+                    );
+                }
+
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException) {
+                    return $responder->error(
+                        message: 'This HTTP method is not allowed for this endpoint.',
+                        responseCode: '405',
+                        statusCode: 405
                     );
                 }
 
@@ -70,13 +82,11 @@ return Application::configure(basePath: dirname(__DIR__))
                     );
                 }
 
-                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
-                    report($e);
-
+                if ($e instanceof \TypeError) {
                     return $responder->error(
-                        message: 'We are unable to process your request please try again.',
-                        responseCode: (string) $e->getStatusCode(),
-                        statusCode: $e->getStatusCode()
+                        message: 'The requested resource was not found.',
+                        responseCode: '404',
+                        statusCode: 404
                     );
                 }
 
@@ -84,16 +94,26 @@ return Application::configure(basePath: dirname(__DIR__))
                     report($e);
 
                     return $responder->error(
-                        message: 'We are unable to process your request please try again.',
+                        message: 'We are unable to process your request please try again (DB).',
                         responseCode: '100',
                         statusCode: 500
+                    );
+                }
+
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    report($e);
+
+                    return $responder->error(
+                        message: 'We are unable to process your request please try again (KL).',
+                        responseCode: (string) $e->getStatusCode(),
+                        statusCode: $e->getStatusCode()
                     );
                 }
 
                 report($e);
 
                 return $responder->error(
-                    message: 'We are unable to process your request please try again.',
+                    message: 'We are unable to process your request please try again (GB).',
                     responseCode: '100',
                     statusCode: 500,
                 );

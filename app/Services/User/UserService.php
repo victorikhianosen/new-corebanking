@@ -7,6 +7,8 @@ use App\Services\Audit\AuditService;
 use App\Services\Message\MessageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class UserService
 {
@@ -50,21 +52,20 @@ class UserService
             );
         })->afterResponse();
 
-        dispatch(function () use ($user, $plainPassword) {
-            $this->message->send(
-                actor: $user,
-                channel: 'email',
-                type: 'account_created',
-                recipient: $user->email,
-                body: view('emails.bodies.user.created', [
-                    'user'     => $user,
-                    'username' => $user->username,
-                    'password' => $plainPassword,
-                ])->render(),
-                subject: 'Welcome to ' . config('app.name') . ' — Your Account is Ready',
-                payload: ['user_id' => $user->id, 'code' => $user->code],
-            );
-        })->afterResponse();
+    dispatch(function () use ($user, $plainPassword) {
+    $this->message->sendEmail(
+        actor: $user,
+        type: 'account_created',
+        recipient: $user->email,
+        body: view('emails.bodies.user.created', [
+            'user'     => $user,
+            'username' => $user->username,
+            'password' => $plainPassword,
+        ])->render(),
+        subject: 'Your Account is Ready',
+        payload: ['user_id' => $user->id, 'code' => $user->code],
+    );
+})->afterResponse();
 
         return $user;
     }
@@ -129,17 +130,98 @@ class UserService
         return $code;
     }
 
+
     private function generateUniqueUsername(string $firstName, string $lastName): string
+{
+    $first = Str::slug($firstName, '');
+    $full  = Str::slug($firstName . $lastName, '');
+
+    // Try first name alone first
+    if (! User::where('username', $first)->exists()) {
+        return $first;
+    }
+
+    // Then try first name + last name together
+    if (! User::where('username', $full)->exists()) {
+        return $full;
+    }
+
+    // Then append numbers until unique, no dots
+    $suffix = 1;
+    do {
+        $username = $full . $suffix;
+        $suffix++;
+    } while (User::where('username', $username)->exists());
+
+    return $username;
+}
+
+
+    public function syncRoles(User $user, array $roles): User
     {
-        $base     = Str::slug($firstName . '.' . $lastName, '.');
-        $username = $base;
-        $suffix   = 1;
+        $user->syncRoles($this->resolveRoles($roles));
 
-        while (User::where('username', $username)->exists()) {
-            $username = $base . $suffix;
-            $suffix++;
-        }
+        return $user->refresh()->load('roles');
+    }
 
-        return $username;
+    public function assignRoles(User $user, array $roles): User
+    {
+        $before = $user->roles->pluck('name');
+        $actor  = auth()->user();
+
+        $user->assignRole($this->resolveRoles($roles));
+        $user->refresh()->load('roles');
+
+        $this->audit->log(
+            action: 'roles_assigned',
+            module: 'users',
+            auditable: $user,
+            before: ['roles' => $before],
+            after: ['roles' => $user->roles->pluck('name')],
+            description: "Role(s) [" . implode(', ', $roles) . "] were assigned to user '{$user->username}' by '{$actor?->username}'.",
+        );
+
+        return $user;
+    }
+
+    public function removeRoles(User $user, array $roles): User
+    {
+        $before = $user->roles->pluck('name');
+        $actor  = auth()->user();
+
+        $user->removeRole($this->resolveRoles($roles));
+        $user->refresh()->load('roles');
+
+        $this->audit->log(
+            action: 'roles_removed',
+            module: 'users',
+            auditable: $user,
+            before: ['roles' => $before],
+            after: ['roles' => $user->roles->pluck('name')],
+            description: "Role(s) [" . implode(', ', $roles) . "] were removed from user '{$user->username}' by '{$actor?->username}'.",
+        );
+
+        return $user;
+    }
+
+    public function syncPermissions(User $user, array $permissions): User
+    {
+        $user->syncPermissions($this->resolvePermissions($permissions));
+
+        return $user->refresh()->load('permissions');
+    }
+
+    /**
+     * Resolve role names to `user`-guard model instances so Spatie's guard
+     * auto-detection (which defaults to `web` for this app) is bypassed.
+     */
+    private function resolveRoles(array $names): \Illuminate\Support\Collection
+    {
+        return Role::whereIn('name', $names)->where('guard_name', 'user')->get();
+    }
+
+    private function resolvePermissions(array $names): \Illuminate\Support\Collection
+    {
+        return Permission::whereIn('name', $names)->where('guard_name', 'user')->get();
     }
 }

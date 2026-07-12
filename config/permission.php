@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Spatie\Permission\DefaultTeamResolver;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -42,7 +43,7 @@ return [
          * attachModels, or detachModels, this model class will be used to
          * resolve those IDs. If null, defaults to the guard's model.
          */
-        'default_model' => null,
+        'default_model' => User::class,
     ],
 
     'table_names' => [

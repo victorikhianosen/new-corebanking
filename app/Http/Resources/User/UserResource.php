@@ -27,6 +27,7 @@ class UserResource extends JsonResource
             'notes'         => $this->notes,
             'enable_2fa'    => $this->enable_2fa,
             'status'        => $this->status,
+            'roles'         => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')),
             'last_login_at' => $this->last_login_at,
             'created_at'    => $this->created_at,
             'updated_at'    => $this->updated_at,
